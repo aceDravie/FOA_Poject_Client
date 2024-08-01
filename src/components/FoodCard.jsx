@@ -31,7 +31,7 @@ const AddButton = styled(IconButton)({
   },
 });
 
-const FoodCard = ({ id, imageSrc, title, rating, price, description}) => {
+const FoodCard = ({ id, imageSrc, name, rating, price, description}) => {
   const [open, setOpen] = useState(false);
 
   const handleClickOpen = () => {
@@ -49,7 +49,7 @@ const FoodCard = ({ id, imageSrc, title, rating, price, description}) => {
           <AddButton aria-label="add" onClick={handleClickOpen}>
             <AddIcon />
           </AddButton>
-          <StyledImage src={imageSrc} alt={title} />
+          <StyledImage src={imageSrc} alt={name} />
         </ImageWrapper>
         <Box
           className="down"
@@ -62,7 +62,7 @@ const FoodCard = ({ id, imageSrc, title, rating, price, description}) => {
         >
           <div>
             <Typography sx={{ fontWeight: "bold", textTransform: "uppercase" }}>
-              {title}
+              {name}
             </Typography>
             <Rating value={rating} readOnly />
           </div>
@@ -83,7 +83,7 @@ const FoodCard = ({ id, imageSrc, title, rating, price, description}) => {
       <FoodDialog
         open={open}
         onClose={handleClose}
-        title={title}
+        name={name}
         rating={rating}
         price={price}
         imageSrc={imageSrc} 

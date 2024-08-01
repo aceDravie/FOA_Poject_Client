@@ -2,12 +2,15 @@ import { useContext } from "react";
 import Login from "./pages/Login";
 import WelcomePage from "./pages/WelcomePage";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthContext } from "./contexts/AuthContext";
+import { AuthContext } from "./context/AuthContext";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import RootLayout from "./layouts/RootLayout";
 import AllFood from "./components/AllFood";
 import Orders from "./components/Orders";
+import { ThemeProvider } from "@mui/material/styles";
+import Category from "./components/Category";
+import theme from "./helpers/Theme";
 
 function App() {
   const currentUser = useContext(AuthContext);
@@ -16,27 +19,23 @@ function App() {
   };
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route>
-          <Route path="" element={<WelcomePage />} />
-          <Route path="login" element={<Login />} />
-          <Route path="signup" element={<Signup />} />
-          <Route
-            path="dashboard"
-            element={
-              <RequireAuth>
-                <RootLayout />
-              </RequireAuth>
-            }
-          >
-          <Route path="" element={<Dashboard/>} />
-          <Route path="allFood" element={<AllFood/>}/>
-         <Route path="orders" element={<Orders/>}/>
+    <ThemeProvider theme={theme}>
+      <BrowserRouter>
+        <Routes>
+          <Route>
+            <Route path="" element={<WelcomePage />} />
+            <Route path="login" element={<Login />} />
+            <Route path="signup" element={<Signup />} />
+            <Route path="client" element={<RootLayout />}>
+              <Route path="dashboard" element={<Dashboard />}>
+                <Route index element={<Category />} />
+                <Route path="all-foods" element={<AllFood />} />
+              </Route>
+            </Route>
           </Route>
-        </Route>
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 

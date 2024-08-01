@@ -6,21 +6,34 @@ import "swiper/css/effect-coverflow";
 import "swiper/css/pagination";
 import "swiper/css/navigation";
 import { EffectCoverflow, Navigation, Pagination } from "swiper/modules";
+import { db } from "../helpers/firebase";
+import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import FoodDialog from "../mods/FoodDialog";
 
 const Slideshow = () => {
   const [topFoods, setTopFoods] = useState([]);
   const [selectedFood, setSelectedFood] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [food, setFood] = useState([]);
 
-const fooddata = [
-  {id: 1, name: "Banku", price: 10, image: "https://img.freepik.com/free-photo/fresh-grill-bbq-chicken_144627-7526.jpg?t=st=1722491792~exp=1722495392~hmac=7c0f85fc1d00698e68c3faa3eb73ac34ae4e6a4411333ceacccbb0743e2d635c&w=1060"},
-  {id: 1, name: "rice", price: 10, image: ""},
-  {id: 1, name: "Beans", price: 10, image: ""},
-  {id: 1, name: "Yam", price: 10,  image: ""}
-]
+  useEffect(() => {
+    const fetchTopFoods = async () => {
+      try {
+        const foodsRef = collection(db, "foods");
+        const q = query(foodsRef, orderBy("orderCount", "desc"), limit(10));
+        const querySnapshot = await getDocs(q);
+        const foods = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setTopFoods(foods);
+      } catch (error) {
+        console.error("Error fetching top foods:", error);
+      }
+    };
 
-  
+    fetchTopFoods();
+  }, []);
+
   const handleImageClick = (food) => {
     setSelectedFood(food);
     setDialogOpen(true);
@@ -30,7 +43,7 @@ const fooddata = [
     setDialogOpen(false);
     setSelectedFood(null);
   };
-  
+
   return (
     <div className="container">
       <Swiper
@@ -54,7 +67,7 @@ const fooddata = [
         modules={[EffectCoverflow, Pagination, Navigation]}
         className="swiper_container"
       >
-        {fooddata.map((food) => (
+        {topFoods.map((food) => (
           <SwiperSlide key={food.id}>
             <Box
               className="slide-content"

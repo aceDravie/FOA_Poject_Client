@@ -7,7 +7,6 @@ import AddIcCallIcon from "@mui/icons-material/AddIcCall";
 import ContactMailIcon from "@mui/icons-material/ContactMail";
 import EmailIcon from "@mui/icons-material/Email";
 import CameraAltIcon from "@mui/icons-material/CameraAlt";
-
 import {
   Button,
   InputAdornment,
@@ -20,11 +19,16 @@ import {
   Select,
 } from "@mui/material";
 import { Visibility, VisibilityOff, Person } from "@mui/icons-material";
-import { useNavigate, Link, Form } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import Grid from "@mui/material/Grid";
+
+import { auth, db, storage } from "../helpers/firebase"; // Make sure to import your Firebase configuration
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
 const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [lastName, setLastName] = useState("");
@@ -35,17 +39,15 @@ const Signup = () => {
   const [gender, setGender] = useState("");
   const navigate = useNavigate();
   const [message, setMessage] = useState("");
-  const [_open, setOpen] = useState(false);
+  const [error, setError] = useState("");
   const [severity, setSeverity] = useState("error");
- 
-  const handleClose = () => {
-    setOpen(false);
-  };
+  const [open, setOpen] = useState(false);
+
   const handleTogglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
     if (
       !contact ||
@@ -54,31 +56,80 @@ const Signup = () => {
       !email ||
       !address ||
       !gender ||
-      !password
-      
+      !password ||
+      !image
     ) {
-      setOpen(true);
       setSeverity("error");
       setMessage("All fields required");
-    } else navigate("/login");
-  };
-  const limitContactValue = (e) => {
-    const contactValue = e.target.value;
-    // Allow only numbers and ensure the length does not exceed the limit
-    if (/^\d*$/.test(contactValue) && contactValue.length <= 10) {
-      setContact(contactValue);
       setOpen(true);
-      setMessage("Contact must be 10 Digits");
+      return;
+    }
+
+    try {
+      // Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+
+      // Upload image to Firebase Storage
+      const storageRef = ref(storage, `customerImages/${user.uid}`);
+      await uploadBytes(storageRef, image);
+      const imageUrl = await getDownloadURL(storageRef);
+
+      // Add user to customers collection
+      await addDoc(collection(db, "customers"), {
+        uid: user.uid,
+        firstName,
+        lastName,
+        email,
+        contact,
+        address,
+        gender,
+        imageUrl,
+        createdAt: serverTimestamp(),
+        status: true,
+      });
+
+      setSeverity("success");
+      setMessage("Signup successful!");
+      setOpen(true);
+
+      // Set a timeout to navigate after 1 second
+      setTimeout(() => {
+        navigate("/login");
+      }, 1000);
+    } catch (error) {
+      setSeverity("error");
+      setMessage(error.message);
+      setOpen(true);
     }
   };
+
+  const handleClose = (event, reason) => {
+    if (reason === "clickaway") {
+      return;
+    }
+    setOpen(false);
+  };
+
+  const limitContactValue = (e) => {
+    const contactValue = e.target.value;
+    if (/^\d*$/.test(contactValue) && contactValue.length <= 10) {
+      setContact(contactValue);
+    }
+  };
+
   return (
-    <form>
+    <form onSubmit={handleSignup}>
       <Box
         sx={{
           height: "95vh",
           backgroundImage:
             'url("https://img.freepik.com/free-photo/high-angle-view-various-vegetables-black-background_23-2147917348.jpg?uid=R109053140&ga=GA1.1.1690857631.1698584058&semt=ais_user")',
-         
+
           backgroundSize: "cover",
           backgroundPosition: "center",
           display: "flex",
@@ -277,11 +328,7 @@ const Signup = () => {
             >
               <Avatar
                 position="relative"
-                src={
-                  image
-                    ? URL.createObjectURL(image)
-                    : ""
-                }
+                src={image ? URL.createObjectURL(image) : ""}
                 sx={{ width: 130, height: 130 }}
               />
               <input
@@ -310,12 +357,18 @@ const Signup = () => {
             </Box>
 
             <Snackbar
-              open={_open}
-              autoHideDuration={6000}
+              open={open}
+              autoHideDuration={1000}
               onClose={handleClose}
               anchorOrigin={{ vertical: "top", horizontal: "center" }}
             >
-              <Alert severity={severity}>{message}</Alert>
+              <Alert
+                onClose={handleClose}
+                severity={severity}
+                sx={{ width: "100%" }}
+              >
+                {message}
+              </Alert>
             </Snackbar>
           </Grid>
         </Container>

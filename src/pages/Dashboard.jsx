@@ -1,6 +1,6 @@
 import React from "react";
 import Slideshow from "../components/Slideshow";
-import { Typography } from "@mui/material";
+import { Typography, Container } from "@mui/material";
 import { Outlet, NavLink, useParams, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import "../styles/rootLayout.css";
@@ -10,18 +10,18 @@ const Dashboard = () => {
   const location = useLocation();
 
   return (
-    <>
-      <Slideshow /> 
+    <Container>
+      <Slideshow />
       <div className="">
         <div className="links">
-          <NavLink to={`/dashboard/${clientID}`} className="navLink" end>
+          <NavLink to={`/client/dashboard`} className="navLink" end>
             <Typography sx={{ fontWeight: "bold" }}>Category</Typography>
           </NavLink>
 
           <NavLink
-            to={`/dashboard/${clientID}/allFood`}
+            to={`/client/dashboard/all-foods`}
             className={({ isActive }) =>
-              isActive && location.pathname.endsWith("/allFood")
+              isActive && location.pathname.endsWith("/ood")
                 ? "navLink active"
                 : "navLink"
             }
@@ -41,7 +41,7 @@ const Dashboard = () => {
           <Outlet />
         </motion.div>
       </AnimatePresence>
-    </>
+    </Container>
   );
 };
 

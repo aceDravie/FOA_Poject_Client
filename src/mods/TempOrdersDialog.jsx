@@ -23,94 +23,118 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import CloseIcon from "@mui/icons-material/Close";
 import RatingDialog from "./RatingDialog";
+import { db } from "../helpers/firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { AuthContext } from "../context/AuthContext";
 const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
-    const [expandedOrderIndex, setExpandedOrderIndex] = useState(null);
-    const [orderType, setOrderType] = useState("delivery");
-    const [orderQuantities, setOrderQuantities] = useState([]);
-    const [totalPrice, setTotalPrice] = useState(0);
-    const [pickupDate, setPickupDate] = useState("");
-    const [pickupTime, setPickupTime] = useState("");
-    const [alertOpen, setAlertOpen] = useState(false);
-    const [alertMessage, setAlertMessage] = useState("");
-    const [alertSeverity, setAlertSeverity] = useState("success");
-  
-    const { clientID } = useParams();
-  
-    const [deliveryGuys, setDeliveryGuys] = useState([]);
-    const [locations, setLocations] = useState([]);
-    const [selectedLocation, setSelectedLocation] = useState(null);
-    const [otherInformation, setOtherInformation] = useState("");
-    const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
-    const [showRateButton, setShowRateButton] = useState(false);
-    const [rateButtonTimer, setRateButtonTimer] = useState(null);
+  const [expandedOrderIndex, setExpandedOrderIndex] = useState(null);
+  const [orderType, setOrderType] = useState("delivery");
+  const [orderQuantities, setOrderQuantities] = useState([]);
+  const [totalPrice, setTotalPrice] = useState(0);
+  const [pickupDate, setPickupDate] = useState("");
+  const [pickupTime, setPickupTime] = useState("");
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertSeverity, setAlertSeverity] = useState("success");
+  let [, setTempOrders] = useState([]);
 
-    const handleRateUsClick = () => {
-        clearTimeout(rateButtonTimer);
-        setShowRateButton(false);
-        setRatingDialogOpen(true);
-      };
+  const { currentUser } = useContext(AuthContext);
 
-      useEffect(() => {
-        if (alertOpen) {
-          const timer = setTimeout(() => {
-            setAlertOpen(false);
-          }, 10000);
-          return () => clearTimeout(timer);
-        }
-      }, [alertOpen]);
+  const [deliveryGuys, setDeliveryGuys] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [otherInformation, setOtherInformation] = useState("");
+  const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+  const [showRateButton, setShowRateButton] = useState(false);
+  const [rateButtonTimer, setRateButtonTimer] = useState(null);
 
+  const handleRateUsClick = () => {
+    clearTimeout(rateButtonTimer);
+    setShowRateButton(false);
+    setRatingDialogOpen(true);
+  };
 
-      const handleDialogClose = () => {
-        setSelectedLocation(null);
-        onClose();
-      };
+  useEffect(() => {
+    if (alertOpen) {
+      const timer = setTimeout(() => {
+        setAlertOpen(false);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [alertOpen]);
 
-      const handleSelectLocation = (event) => {
-        const selectedLocationId = event.target.value;
-        const selectedLocation = locations.find(
-          (location) => location.id === selectedLocationId
+  const handleDialogClose = () => {
+    setSelectedLocation(null);
+    onClose();
+  };
+
+  const handleSelectLocation = (event) => {
+    const selectedLocationId = event.target.value;
+    const selectedLocation = locations.find(
+      (location) => location.id === selectedLocationId
+    );
+    setSelectedLocation(selectedLocation);
+
+    // Update totalPrice with the selected location's price
+    if (selectedLocation) {
+      const newTotalPrice =
+        tempOrders.reduce((total, order, index) => {
+          const quantity = orderQuantities[index];
+          return total + order.totalPrice * quantity;
+        }, 0) + selectedLocation.price;
+      setTotalPrice(newTotalPrice);
+    }
+  };
+
+  useEffect(() => {
+    setOrderQuantities(tempOrders.map(() => 1));
+  }, [tempOrders]);
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+
+    const fetchTempOrders = async () => {
+      if (currentUser && currentUser.uid) {
+        const tempOrdersQuery = query(
+          collection(db, "tempOrders"),
+          where("clientId", "==", currentUser.uid)
         );
-        setSelectedLocation(selectedLocation);
-    
-        // Update totalPrice with the selected location's price
-        if (selectedLocation) {
-          const newTotalPrice =
-            tempOrders.reduce((total, order, index) => {
-              const quantity = orderQuantities[index];
-              return total + order.totalPrice * quantity;
-            }, 0) + selectedLocation.price;
-          setTotalPrice(newTotalPrice);
-        }
-      };
 
-     
+        unsubscribe = onSnapshot(tempOrdersQuery, (snapshot) => {
+          const orders = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setTempOrders(orders);
+          setOrderQuantities(orders.map(() => 1));
+        });
+      }
+    };
 
-      useEffect(() => {
-        setOrderQuantities(tempOrders.map(() => 1));
-      }, [tempOrders]);
+    fetchTempOrders();
 
-      
+    return () => unsubscribe();
+  }, [currentUser]);
 
-      useEffect(() => {
-        if (tempOrders.length > 0) {
-          let total = 0;
-          tempOrders.forEach((order, index) => {
-            const quantity = orderQuantities[index];
-            total += order.totalPrice * quantity;
-          });
-          setTotalPrice(total);
-        } else {
-          setTotalPrice(0);
-        }
-      }, [orderQuantities, tempOrders]);
+  useEffect(() => {
+    if (tempOrders.length > 0) {
+      let total = 0;
+      tempOrders.forEach((order, index) => {
+        const quantity = orderQuantities[index];
+        total += order.totalPrice * quantity;
+      });
+      setTotalPrice(total);
+    } else {
+      setTotalPrice(0);
+    }
+  }, [orderQuantities, tempOrders]);
 
-      const toggleExpand = (index) => {
+  const toggleExpand = (index) => {
     setExpandedOrderIndex(expandedOrderIndex === index ? null : index);
   };
 
   const handleOrderTypeClick = (type) => {
     if (type === "pickup") {
-      // If changing to pickup, reset the selectedLocation and recalculate the totalPrice without the location price
       setSelectedLocation(null);
       const newTotalPrice = tempOrders.reduce((total, order, index) => {
         const quantity = orderQuantities[index];
@@ -130,11 +154,10 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
     setOrderQuantities(newQuantities);
   };
 
-
   const handleOrder = async () => {
     const pickupDateTime = `${pickupDate}T${pickupTime}`;
     if (orderType === "delivery") {
-        const deliveryGuys = ["Aku", "Paul", "John"]
+      const deliveryGuys = ["Aku", "Paul", "John"];
       const deliveryOrders = deliveryGuys.map((order, index) => ({
         ...order,
         quantity: orderQuantities[index],
@@ -153,13 +176,12 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
         orderType: "delivery",
         pickupDateTime,
         randomDeliveryGuy,
-        
       };
       console.log("Delivery Order Data:", deliveryData);
 
       try {
-        const foodOrder = ["Tea", "Banku", "wakye"]
-       
+        const foodOrder = ["Tea", "Banku", "wakye"];
+
         await updateDoc(foodOrder, {
           totalAmount: increment(totalPrice.toFixed(2)),
           totalOrders: increment(1),
@@ -167,10 +189,10 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
         console.log("Delivery order data saved successfully!");
 
         // Delete documents from tempOrders collection
-        const tempOrdersCollection = ["Tea", "Banku", "wakye"]
+        const tempOrdersCollection = ["Tea", "Banku", "wakye"];
         const batch = writeBatch(tempOrdersCollection);
 
-      forEach((doc) => {
+        forEach((doc) => {
           if (doc.data().clientId === clientID) {
             batch.delete(doc.tempOrdersCollection);
           }
@@ -182,7 +204,6 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
         );
 
         for (const order of deliveryOrders) {
-          
           const foodDoc = ["Tea", "Banku", "wakye"];
 
           if (foodDoc.exists()) {
@@ -190,9 +211,8 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
             const currentCount = foodData.count || 0;
             const newCount = currentCount + order.quantity;
 
-            console.log(foodData)
+            console.log(foodData);
           } else {
-            
           }
         }
 
@@ -236,12 +256,10 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
       console.log("Pickup Order Data:", pickupData);
 
       try {
-        const foodOrder= pickupData;
-        const customerRef = ["A", "B", "C"]
-        
-        console.log("Pickup order data saved successfully!");
+        const foodOrder = pickupData;
+        const customerRef = ["A", "B", "C"];
 
-        
+        console.log("Pickup order data saved successfully!");
 
         setAlertMessage("Order added successfully!");
         setAlertSeverity("success");
@@ -556,7 +574,7 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
         onClose={() => setRatingDialogOpen(false)}
       />
     </>
-  )
-}
+  );
+};
 
-export default TempOrdersDialog
+export default TempOrdersDialog;

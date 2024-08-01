@@ -14,26 +14,85 @@ import Badge from "@mui/material/Badge";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
-import { AuthContext } from "../contexts/AuthContext";
+import { AuthContext } from "../context/AuthContext";
 import Avatar from "@mui/material/Avatar";
 import { Person } from "@mui/icons-material";
 import Profile from "./Profile";
 import TempOrdersDialog from "../mods/TempOrdersDialog";
 const settings = ["Profile", "Logout"];
-import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
+import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
+import { auth, db } from "../helpers/firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  onSnapshot,
+} from "firebase/firestore";
 
 const Navbar = () => {
   const [anchorElNav, setAnchorElNav] = useState(null);
   const [anchorElUser, setAnchorElUser] = useState(null);
+  const [userImage, setUserImage] = useState("");
   const [firstName, setFirstName] = useState("");
   const [tempOrdersCount, setTempOrdersCount] = useState(0);
   const [tempOrders, setTempOrders] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showNavbar, setShowNavbar] = useState(true);
-  const { clientID } = useParams();
   const { currentUser, dispatch } = useContext(AuthContext);
   const [openChangeProfile, setOpenChangeProfile] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+
+    const fetchData = async () => {
+      try {
+        if (currentUser && currentUser.uid) {
+          // First, fetch the customer document to get the customer's ID
+          const customerQuery = query(
+            collection(db, "customers"),
+            where("uid", "==", currentUser.uid)
+          );
+          const customerSnapshot = await getDocs(customerQuery);
+
+          if (!customerSnapshot.empty) {
+            const customerDoc = customerSnapshot.docs[0];
+            const customerData = customerDoc.data();
+            const customerId = customerDoc.id;
+
+            setUserImage(customerData.image || "");
+            setFirstName(customerData.firstName || "");
+
+            // Set up real-time listener for tempOrdersCount
+            const tempOrdersQuery = query(
+              collection(db, "tempOrders"),
+              where("clientId", "==", customerId)
+            );
+
+            unsubscribe = onSnapshot(
+              tempOrdersQuery,
+              (snapshot) => {
+                setTempOrdersCount(snapshot.size);
+              },
+              (error) => {
+                console.error("Error fetching tempOrders:", error);
+              }
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchData();
+
+    // Cleanup function
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentUser]);
 
   const handleOpenChangeProfile = () => {
     setOpenChangeProfile(true);
@@ -64,7 +123,6 @@ const Navbar = () => {
   };
   const handleOpenDialog = () => {
     setDialogOpen(true);
-    
   };
 
   const handleRemoveOrder = async (index) => {
@@ -186,7 +244,7 @@ const Navbar = () => {
                       textAlign="center"
                       sx={{ fontWeight: "bold", fontSize: 12 }}
                     >
-                      Hello{" "}
+                      Hello
                       <span
                         style={{
                           marginLeft: "1px",
@@ -207,7 +265,7 @@ const Navbar = () => {
               variant="h5"
               noWrap
               component={Link}
-              to= "/dashboard"
+              to="/dashboard"
               sx={{
                 display: { xs: "flex", md: "none" },
                 flexGrow: 1,
@@ -229,13 +287,11 @@ const Navbar = () => {
                 }}
               >
                 <IconButton>
-                <Avatar
-                
-                 alt="Profile Picture"
+                  <Avatar
+                    alt="Profile Picture"
                     sx={{ width: 27, height: 27, bgcolor: "#6439ff" }}
-                  >
-                   
-                  </Avatar>
+                    src={userImage}
+                  />
                 </IconButton>
                 <Typography
                   noWrap
@@ -278,8 +334,8 @@ const Navbar = () => {
                 </IconButton>
               </Tooltip>
               <Tooltip title="Account settings">
-                <IconButton  onClick={handleOpenUserMenu}>
-                  <ManageAccountsIcon/>
+                <IconButton onClick={handleOpenUserMenu}>
+                  <ManageAccountsIcon />
                 </IconButton>
               </Tooltip>
               <Menu

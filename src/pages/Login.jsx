@@ -1,5 +1,5 @@
 import Container from "@mui/material/Container";
-import { useState } from "react";
+import { useState, useContext } from "react";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import EmailIcon from "@mui/icons-material/Email";
@@ -15,6 +15,11 @@ import {
 import { Visibility, VisibilityOff, Person } from "@mui/icons-material";
 import { useNavigate, Link } from "react-router-dom";
 import Grid from "@mui/material/Grid";
+import { AuthContext } from "../context/AuthContext";
+import { auth, db } from "../helpers/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { collection, query, where, getDocs } from "firebase/firestore";
+
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -22,18 +27,60 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const { dispatch } = useContext(AuthContext);
+
   const navigate = useNavigate();
   const handleTogglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    navigate("/dashboard");
-  };
 
+    try {
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+
+      const staffQuery = query(
+        collection(db, "customers"),
+        where("email", "==", user.email)
+      );
+      const querySnapshot = await getDocs(staffQuery);
+
+      if (!querySnapshot.empty) {
+        const customerData = querySnapshot.docs[0].data();
+        if (customerData.status === true) {
+          dispatch({
+            type: "LOGIN",
+            payload: {
+              ...user,
+              role: customerData.role,
+              customerId: querySnapshot.docs[0].id,
+            },
+          });
+          navigate("/client/dashboard");
+        } else if (customerData.role !== "super") {
+          setError("You don't have permission to access the dashboard.");
+        } else if (customerData.status !== true) {
+          setError(
+            "Your account is currently inactive. Please contact an administrator."
+          );
+        }
+      } else {
+        setError("User not found in customers collection.");
+      }
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div>
       <Box

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -12,80 +12,145 @@ import {
   Tooltip,
   TextField,
   Alert,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import { ShoppingCart } from "@mui/icons-material";
+import { db } from "../helpers/firebase";
+import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { useParams } from "react-router-dom";
 import CloseIcon from "@mui/icons-material/Close";
+import { AuthContext } from "../context/AuthContext";
 
 const FoodDialog = ({
-    open,
-    onClose,
-    title,
-    rating,
-    price,
-    imageSrc,
-    description,
-    id,
-  }) => {
-    const [toppings, setToppings] = useState([]);
-    const [totalPrice, setTotalPrice] = useState(price);
-    const [quantities, setQuantities] = useState([]);
-    const [instructions, setInstructions] = useState("");
-    const [alertOpen, setAlertOpen] = useState(false);
-    const [alertMessage, setAlertMessage] = useState("");
-    const [alertSeverity, setAlertSeverity] = useState("success");
-    const { clientID } = useParams();
+  open,
+  onClose,
+  name,
+  rating,
+  price,
+  imageSrc,
+  description,
+  id,
+}) => {
+  const [toppings, setToppings] = useState([]);
+  const [totalPrice, setTotalPrice] = useState(price);
+  const [selectedToppings, setSelectedToppings] = useState({});
+  const [instructions, setInstructions] = useState("");
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertSeverity, setAlertSeverity] = useState("success");
+  const { currentUser } = useContext(AuthContext);
+  const [clientId, setClientId] = useState(null);
 
-    useEffect(() => {
-        if (alertOpen) {
-          const timer = setTimeout(() => {
-            setAlertOpen(false);
-          }, 3000);
-          return () => clearTimeout(timer);
-        }
-      }, [alertOpen]);
-
-      const handleQuantityChange = (index, value) => {
-        const newQuantities = [...quantities];
-        newQuantities[index] = value;
-        setQuantities(newQuantities);
-    
-        const newTotalPrice = newQuantities.reduce((acc, qty, i) => {
-          return acc + qty * toppings[i].price;
-        }, price);
-    
-        setTotalPrice(newTotalPrice);
-      };
-      const handleAddToCart = async () => {
-        const orderDetails = {
-          foodId: id,
-          foodName: title,
-          foodPrice: price,
-          toppings: toppings
-            .filter((_, index) => quantities[index] > 0)
-            .map((topping, index) => ({
-              name: topping.name,
-              price: topping.price,
-              quantity: quantities[index],
-            })),
-          clientId: clientID,
-          totalPrice: totalPrice,
-          instructions: instructions,
-        };
-    
+  useEffect(() => {
+    const fetchClientId = async () => {
+      if (currentUser && currentUser.email) {
         try {
-          await addDoc(collection(db, "tempOrders"), orderDetails);
-          setAlertMessage("Order added to cart successfully!");
-          setAlertSeverity("success");
-          setAlertOpen(true);
-          onClose();
+          const customersRef = collection(db, "customers");
+          const q = query(
+            customersRef,
+            where("email", "==", currentUser.email)
+          );
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            setClientId(querySnapshot.docs[0].id);
+          }
         } catch (error) {
-          console.error("Error adding to TempOrders:", error);
-          setAlertMessage("Error adding order to cart. Please try again.");
-          setAlertSeverity("error");
-          setAlertOpen(true);
+          console.error("Error fetching client ID:", error);
         }
-      };
+      }
+    };
+
+    fetchClientId();
+  }, [currentUser]);
+
+  useEffect(() => {
+    const fetchToppings = async () => {
+      try {
+        const q = query(
+          collection(db, "toppings"),
+          where("foods", "array-contains", id)
+        );
+        const querySnapshot = await getDocs(q);
+        let toppingsList = [];
+        querySnapshot.forEach((doc) => {
+          toppingsList.push({ id: doc.id, ...doc.data() });
+        });
+        setToppings(toppingsList);
+        const initialSelectedToppings = {};
+        toppingsList.forEach((topping) => {
+          initialSelectedToppings[topping.id] = false;
+        });
+        setSelectedToppings(initialSelectedToppings);
+      } catch (error) {
+        console.error("Error fetching toppings:", error);
+      }
+    };
+
+    if (id) {
+      fetchToppings();
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (alertOpen) {
+      const timer = setTimeout(() => {
+        setAlertOpen(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [alertOpen]);
+
+  const handleToppingChange = (toppingId, isChecked) => {
+    setSelectedToppings((prev) => ({ ...prev, [toppingId]: isChecked }));
+
+    const topping = toppings.find((t) => t.id === toppingId);
+    if (topping) {
+      setTotalPrice((prevPrice) =>
+        isChecked ? prevPrice + topping.price : prevPrice - topping.price
+      );
+    }
+  };
+
+  const handleAddToCart = async () => {
+    if (!clientId) {
+      setAlertMessage(
+        "User not authenticated or client ID not found. Please log in."
+      );
+      setAlertSeverity("error");
+      setAlertOpen(true);
+      return;
+    }
+
+    const orderDetails = {
+      foodId: id,
+      foodName: name,
+      foodPrice: price,
+      toppings: toppings
+        .filter((topping) => selectedToppings[topping.id])
+        .map((topping) => ({
+          name: topping.name,
+          price: topping.price,
+        })),
+      clientId: clientId, // Using the fetched clientId here
+      totalPrice: totalPrice,
+      instructions: instructions,
+    };
+
+    try {
+      await addDoc(collection(db, "tempOrders"), orderDetails);
+      setAlertMessage("Order added to cart successfully!");
+      setAlertSeverity("success");
+      setAlertOpen(true);
+      onClose();
+    } catch (error) {
+      console.error("Error adding to TempOrders:", error);
+      setAlertMessage("Error adding order to cart. Please try again.");
+      setAlertSeverity("error");
+      setAlertOpen(true);
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onClose={onClose}>
@@ -96,7 +161,7 @@ const FoodDialog = ({
               <Box
                 component="img"
                 src={imageSrc}
-                alt={title}
+                alt={name}
                 sx={{
                   width: "100%",
                   height: "auto",
@@ -106,7 +171,7 @@ const FoodDialog = ({
                 }}
               />
               <Typography sx={{ fontWeight: "bold", fontSize: "large" }}>
-                {title.toUpperCase()}
+                {name.toUpperCase()}
               </Typography>
               <Typography
                 sx={{ fontWeight: "bold", color: "#333", fontSize: "small" }}
@@ -139,45 +204,33 @@ const FoodDialog = ({
                 Choose Additional Toppings
               </Typography>
               <Grid container spacing={1} my={2}>
-                {toppings.map((topping, index) => (
-                  <Grid item xs={12} key={index} container alignItems="center">
-                    <Grid item xs={9}>
-                      <Typography
-                        sx={{
-                          whiteSpace: "nowrap",
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        {topping.name}
-                        <sup
-                          style={{
-                            background: "#6439ff",
-                            color: "#fff",
-                            position: "relative",
-                            padding: "0.1rem 0.2rem",
-                            borderRadius: ".3rem",
-                            left: -10,
-                            top: -13,
-                          }}
-                        >
-                          GH₵ {topping.price}
-                        </sup>
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={3}>
-                      <TextField
-                        type="number"
-                        defaultValue={0}
-                        InputProps={{ inputProps: { min: 0, max: 10 } }}
-                        size="small"
-                        onChange={(e) =>
-                          handleQuantityChange(
-                            index,
-                            parseInt(e.target.value) || 0
-                          )
-                        }
-                      />
-                    </Grid>
+                {toppings.map((topping) => (
+                  <Grid item xs={12} key={topping.id}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={selectedToppings[topping.id] || false}
+                          onChange={(e) =>
+                            handleToppingChange(topping.id, e.target.checked)
+                          }
+                        />
+                      }
+                      label={
+                        <Typography>
+                          {topping.name}{" "}
+                          <sup
+                            style={{
+                              background: "#6439ff",
+                              color: "#fff",
+                              padding: "0.1rem 0.2rem",
+                              borderRadius: ".3rem",
+                            }}
+                          >
+                            GH₵ {topping.price}
+                          </sup>
+                        </Typography>
+                      }
+                    />
                   </Grid>
                 ))}
               </Grid>
@@ -243,7 +296,7 @@ const FoodDialog = ({
         </Alert>
       )}
     </>
-  )
-}
+  );
+};
 
-export default FoodDialog
+export default FoodDialog;

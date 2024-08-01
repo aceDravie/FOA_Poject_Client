@@ -1,99 +1,60 @@
 import React, { useState, useEffect } from "react";
-import {
-  Box,
-  Grid,
-  Typography,
-  TextField,
-  Skeleton,
-  InputAdornment,
-} from "@mui/material";
-import { Search } from "@mui/icons-material";
+import { Box, Grid, TextField, Container, Typography } from "@mui/material";
 import FoodCard from "./FoodCard";
-
-import { useParams } from "react-router-dom";
-
-const shuffleArray = (array) => {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  return array;
-};
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../helpers/firebase";
 
 const AllFood = () => {
   const [foods, setFoods] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [categoryDetails, setCategoryDetails] = useState({
-    type: "",
-    name: "",
-  });
-  const { clientID, categoryID } = useParams();
-  const [searchValue, setSearchValue] = useState("");
-
-  const handleSearchChange = (event) => {
-    setSearchValue(event.target.value);
-  };
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    const q = ["Banku", "Wakye", "Tea"]
+    const fetchFoods = async () => {
+      const foodsCollection = collection(db, "foods");
+      const foodSnapshot = await getDocs(foodsCollection);
+      const foodList = foodSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setFoods(foodList);
+    };
 
-    
-    return q;
-  }, []); // Empty dependency array
+    fetchFoods();
+  }, []);
 
-  const filteredFoods = foods.filter(
-    (food) =>
-      food.name.toLowerCase().includes(searchValue.toLowerCase()) &&
-      (!categoryDetails.name || food.category.includes(categoryDetails.name))
+  const filteredFoods = foods.filter((food) =>
+    food.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <Box sx={{ textAlign: "left", my: 3 }}>
-      <TextField
-        sx={{ mb: 2, p: 0, width: "100%", fontSize: "1em", fontWeight: "bold" }}
-        placeholder="Search Foods..."
-        value={searchValue}
-        onChange={handleSearchChange}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <Search />
-            </InputAdornment>
-          ),
-        }}
-      />
-      <div
-        className="head"
-        style={{ display: "flex", justifyContent: "space-between" }}
-      >
-        <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-          {categoryDetails.type}
+    <Container maxWidth="lg">
+      <Box sx={{ my: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          All Foods
         </Typography>
-      </div>
-      <Box sx={{ my: 2 }}>
-        <Grid container spacing={2}>
-          {loading
-            ? [1, 2, 3, 4].map((index) => (
-                <Grid item xs={12} sm={6} md={3} key={index}>
-                  <Skeleton variant="rectangular" width="100%" height={200} />
-                  <Skeleton width="60%" />
-                  <Skeleton width="40%" />
-                </Grid>
-              ))
-            : filteredFoods.map((food) => (
-                <FoodCard
-                  key={food.id}
-                  id={food.id}
-                  imageSrc={food.image}
-                  title={food.name}
-                  rating={food.ratings}
-                  price={food.price}
-                  description={food.description}
-                />
-              ))}
+        <TextField
+          fullWidth
+          label="Search foods"
+          variant="outlined"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          sx={{ mb: 4 }}
+        />
+        <Grid container spacing={3}>
+          {filteredFoods.map((food) => (
+            <FoodCard
+              key={food.id}
+              id={food.id}
+              imageSrc={food.image}
+              name={food.name}
+              rating={food.ratings}
+              price={food.price}
+              description={food.description}
+            />
+          ))}
         </Grid>
       </Box>
-    </Box>
+    </Container>
   );
 };
 
