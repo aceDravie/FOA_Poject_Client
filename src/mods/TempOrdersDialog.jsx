@@ -30,6 +30,13 @@ import {
   where,
   onSnapshot,
   getDocs,
+  updateDoc,
+  increment,
+  setDoc,
+  addDoc,
+  writeBatch,
+  doc,
+  getDoc,
 } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 
@@ -44,8 +51,31 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
   const [alertMessage, setAlertMessage] = useState("");
   const [alertSeverity, setAlertSeverity] = useState("success");
   const [tempOrders, setTempOrders] = useState([]);
+  const [clientId, setClientId] = useState(null);
 
   const { currentUser } = useContext(AuthContext);
+
+  useEffect(() => {
+    const fetchClientId = async () => {
+      if (currentUser && currentUser.email) {
+        try {
+          const customersRef = collection(db, "customers");
+          const q = query(
+            customersRef,
+            where("email", "==", currentUser.email)
+          );
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            setClientId(querySnapshot.docs[0].id);
+          }
+        } catch (error) {
+          console.error("Error fetching client ID:", error);
+        }
+      }
+    };
+
+    fetchClientId();
+  }, [currentUser]);
 
   const [deliveryGuys, setDeliveryGuys] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -171,6 +201,17 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
     setExpandedOrderIndex(expandedOrderIndex === index ? null : index);
   };
 
+  const generateToken = (length) => {
+    let result = "";
+    const characters =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i++) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+  };
+
   const handleOrderTypeClick = (type) => {
     if (type === "pickup") {
       setSelectedLocation(null);
@@ -194,8 +235,7 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
   const handleOrder = async () => {
     const pickupDateTime = `${pickupDate}T${pickupTime}`;
     if (orderType === "delivery") {
-      const deliveryGuys = ["Aku", "Paul", "John"];
-      const deliveryOrders = deliveryGuys.map((order, index) => ({
+      const deliveryOrders = tempOrders.map((order, index) => ({
         ...order,
         quantity: orderQuantities[index],
       }));
@@ -205,33 +245,29 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
       const randomDeliveryGuy = deliveryGuys[randomIndex];
 
       const deliveryData = {
-        deliveryOrders,
-        totalPrice,
-        otherInformation,
-        selectedLocation,
-        clientID,
+        orders: deliveryOrders,
+        totalPrice: totalPrice.toFixed(2),
+        otherInformation: otherInformation,
+        location: selectedLocation,
+        clientId,
         orderType: "delivery",
-        pickupDateTime,
-        randomDeliveryGuy,
+        orderTime: pickupDateTime,
+        deliveryGuy: randomDeliveryGuy,
       };
       console.log("Delivery Order Data:", deliveryData);
 
       try {
-        const foodOrder = ["Tea", "Banku", "wakye"];
-
-        await updateDoc(foodOrder, {
-          totalAmount: increment(totalPrice.toFixed(2)),
-          totalOrders: increment(1),
-        });
+        await addDoc, writeBatch(collection(db, "orders"), deliveryData);
         console.log("Delivery order data saved successfully!");
 
         // Delete documents from tempOrders collection
-        const tempOrdersCollection = ["Tea", "Banku", "wakye"];
-        const batch = writeBatch(tempOrdersCollection);
+        const tempOrdersCollection = collection(db, "tempOrders");
+        const querySnapshot = await getDocs(tempOrdersCollection);
+        const batch = writeBatch(db);
 
-        forEach((doc) => {
-          if (doc.data().clientId === clientID) {
-            batch.delete(doc.tempOrdersCollection);
+        querySnapshot.forEach((doc) => {
+          if (doc.data().clientId === clientId) {
+            batch.delete(doc.ref);
           }
         });
 
@@ -241,15 +277,17 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
         );
 
         for (const order of deliveryOrders) {
-          const foodDoc = ["Tea", "Banku", "wakye"];
+          const foodRef = doc(db, "food", order.foodId);
+          const foodDoc = await getDoc(foodRef);
 
           if (foodDoc.exists()) {
             const foodData = foodDoc.data();
             const currentCount = foodData.count || 0;
             const newCount = currentCount + order.quantity;
 
-            console.log(foodData);
+            await updateDoc(foodRef, { count: newCount });
           } else {
+            await setDoc(foodRef, { count: order.quantity });
           }
         }
 
@@ -282,21 +320,47 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
         orders: pickupOrders,
         totalPrice: totalPrice.toFixed(2),
         orderTime: pickupDateTime,
-        clientId: clientID,
+        clientId,
         otherInformation: otherInformation,
         orderType: "pickup",
         token,
         claimed: false,
-        totalOrders: increment(1),
-        totalAmount: increment(totalPrice.toFixed(2)),
       };
       console.log("Pickup Order Data:", pickupData);
 
       try {
-        const foodOrder = pickupData;
-        const customerRef = ["A", "B", "C"];
-
+        await addDoc(collection(db, "orders"), pickupData);
         console.log("Pickup order data saved successfully!");
+
+        const tempOrdersCollection = collection(db, "tempOrders");
+        const querySnapshot = await getDocs(tempOrdersCollection);
+        const batch = writeBatch(db);
+
+        querySnapshot.forEach((doc) => {
+          if (doc.data().clientId === clientId) {
+            batch.delete(doc.ref);
+          }
+        });
+
+        await batch.commit();
+        console.log(
+          "Documents deleted from tempOrders collection successfully!"
+        );
+
+        for (const order of pickupOrders) {
+          const foodRef = doc(db, "food", order.foodId);
+          const foodDoc = await getDoc(foodRef);
+
+          if (foodDoc.exists()) {
+            const foodData = foodDoc.data();
+            const currentCount = foodData.count || 0;
+            const newCount = currentCount + order.quantity;
+
+            await updateDoc(foodRef, { count: newCount });
+          } else {
+            await setDoc(foodRef, { count: order.quantity });
+          }
+        }
 
         setAlertMessage("Order added successfully!");
         setAlertSeverity("success");

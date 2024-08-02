@@ -31,6 +31,7 @@ function App() {
                 <Route index element={<Category />} />
                 <Route path="all-foods" element={<AllFood />} />
               </Route>
+              <Route path="orders" element={<Orders />} />
             </Route>
           </Route>
         </Routes>

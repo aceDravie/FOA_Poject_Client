@@ -187,7 +187,7 @@ const Navbar = () => {
               variant="h6"
               noWrap
               component={Link}
-              to="/dashboard"
+              to="/client/dashboard"
               sx={{
                 mr: 2,
                 display: { xs: "none", md: "flex" },
@@ -264,7 +264,7 @@ const Navbar = () => {
               variant="h5"
               noWrap
               component={Link}
-              to="/dashboard"
+              to="/client/dashboard"
               sx={{
                 display: { xs: "flex", md: "none" },
                 flexGrow: 1,

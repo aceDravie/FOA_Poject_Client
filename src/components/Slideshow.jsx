@@ -71,7 +71,7 @@ const Slideshow = () => {
           <SwiperSlide key={food.id}>
             <Box
               className="slide-content"
-              onClick={() => handleImageClick(food)}
+              // onClick={() => handleImageClick(food)}
             >
               <img src={food.image} alt={food.name} />
               <Typography variant="h6" className="food-name">

@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import {
   Box,
   Typography,
   Accordion,
   AccordionSummary,
-  AccordionDetails, 
+  AccordionDetails,
 } from "@mui/material";
-import { useParams } from "react-router-dom";
-
+import { AuthContext } from "../context/AuthContext";
+import { db } from "../helpers/firebase";
+import { collection, onSnapshot, query, where, getDocs } from "firebase/firestore";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { motion, AnimatePresence } from "framer-motion";
 import SkeletonAnimation from "@mui/lab/Skeleton";
@@ -26,18 +27,67 @@ const formatDate = (dateString) => {
 };
 
 const Orders = () => {
-  const { clientID } = useParams();
   const [orders, setOrders] = useState([]);
   const [expanded, setExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [ordersPerPage, setOrdersPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [clientId, setClientId] = useState(null);
+
+  const { currentUser } = useContext(AuthContext);
 
   const indexOfLastOrder = currentPage * ordersPerPage;
   const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
   const currentOrders = orders.slice(indexOfFirstOrder, indexOfLastOrder);
 
- 
+  
+  useEffect(() => {
+    const fetchClientId = async () => {
+      if (currentUser && currentUser.email) {
+        try {
+          const customersRef = collection(db, "customers");
+          const q = query(
+            customersRef,
+            where("email", "==", currentUser.email)
+          );
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            setClientId(querySnapshot.docs[0].id);
+          }
+        } catch (error) {
+          console.error("Error fetching client ID:", error);
+        }
+      }
+    };
+
+    fetchClientId();
+  }, [currentUser]);
+
+  useEffect(() => {
+    setIsLoading(true);
+
+    const ordersCollection = collection(db, "orders");
+    const ordersQuery = query(
+      ordersCollection,
+      where("clientId", "==", clientId)
+    );
+
+    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+      const fetchedOrders = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      const sortedOrders = fetchedOrders.sort(
+        (a, b) => new Date(b.orderTime) - new Date(a.orderTime)
+      );
+
+      setOrders(sortedOrders);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [clientId]);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
