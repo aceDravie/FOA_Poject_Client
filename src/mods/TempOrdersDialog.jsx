@@ -98,6 +98,24 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
   }, [tempOrders]);
 
   useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const locationsCollection = collection(db, "location");
+        const querySnapshot = await getDocs(locationsCollection);
+        const locationsData = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setLocations(locationsData);
+      } catch (error) {
+        console.error("Error fetching locations:", error);
+      }
+    };
+
+    fetchLocations();
+  }, []);
+
+  useEffect(() => {
     let unsubscribe = () => {};
 
     const fetchTempOrders = async () => {
@@ -117,7 +135,7 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
             collection(db, "tempOrders"),
             where("clientId", "==", customerId)
           );
-          
+
           unsubscribe = onSnapshot(tempOrdersQuery, (snapshot) => {
             const orders = snapshot.docs.map((doc) => ({
               id: doc.id,
@@ -319,6 +337,14 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
     top: 5,
     fontSize: "small",
   };
+
+  const handleTimeChange = (event) => {
+    const newTime = event.target.value;
+    if (newTime >= pickupTime) {
+      setPickupTime(newTime);
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onClose={handleDialogClose} fullWidth maxWidth="sm">
