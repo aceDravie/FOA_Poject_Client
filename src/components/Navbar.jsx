@@ -49,7 +49,6 @@ const Navbar = () => {
     const fetchData = async () => {
       try {
         if (currentUser && currentUser.uid) {
-          // First, fetch the customer document to get the customer's ID
           const customerQuery = query(
             collection(db, "customers"),
             where("uid", "==", currentUser.uid)

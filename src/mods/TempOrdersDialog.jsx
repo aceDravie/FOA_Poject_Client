@@ -24,9 +24,16 @@ import Select from "@mui/material/Select";
 import CloseIcon from "@mui/icons-material/Close";
 import RatingDialog from "./RatingDialog";
 import { db } from "../helpers/firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+} from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
-const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
+
+const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
   const [expandedOrderIndex, setExpandedOrderIndex] = useState(null);
   const [orderType, setOrderType] = useState("delivery");
   const [orderQuantities, setOrderQuantities] = useState([]);
@@ -36,7 +43,7 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [alertSeverity, setAlertSeverity] = useState("success");
-  let [, setTempOrders] = useState([]);
+  const [tempOrders, setTempOrders] = useState([]);
 
   const { currentUser } = useContext(AuthContext);
 
@@ -95,19 +102,32 @@ const TempOrdersDialog = ({ open, onClose, tempOrders, onRemoveOrder }) => {
 
     const fetchTempOrders = async () => {
       if (currentUser && currentUser.uid) {
-        const tempOrdersQuery = query(
-          collection(db, "tempOrders"),
-          where("clientId", "==", currentUser.uid)
+        const customerQuery = query(
+          collection(db, "customers"),
+          where("uid", "==", currentUser.uid)
         );
+        const customerSnapshot = await getDocs(customerQuery);
 
-        unsubscribe = onSnapshot(tempOrdersQuery, (snapshot) => {
-          const orders = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          setTempOrders(orders);
-          setOrderQuantities(orders.map(() => 1));
-        });
+        if (!customerSnapshot.empty) {
+          const customerDoc = customerSnapshot.docs[0];
+          // const customerData = customerDoc.data();
+          const customerId = customerDoc.id;
+
+          const tempOrdersQuery = query(
+            collection(db, "tempOrders"),
+            where("clientId", "==", customerId)
+          );
+          
+          unsubscribe = onSnapshot(tempOrdersQuery, (snapshot) => {
+            const orders = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            setTempOrders(orders);
+            console.log(tempOrders);
+            setOrderQuantities(orders.map(() => 1));
+          });
+        }
       }
     };
 
