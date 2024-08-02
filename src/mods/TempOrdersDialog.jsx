@@ -180,7 +180,6 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
       }, 0);
       setTotalPrice(newTotalPrice);
     } else {
-      // If changing to delivery, do nothing
     }
     setOrderType(type);
   };
@@ -510,6 +509,14 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
                       </MenuItem>
                     ))}
                   </Select>
+                  <TextField
+                    label="Other information to locate you"
+                    fullWidth
+                    size="small"
+                    sx={{ mt: 1 }}
+                    value={otherInformation}
+                    onChange={(e) => setOtherInformation(e.target.value)}
+                  />
                 </>
               )}
 
@@ -540,14 +547,6 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
                 </>
               )}
 
-              <TextField
-                label="Other information to locate you"
-                fullWidth
-                size="small"
-                sx={{ mt: 1 }}
-                value={otherInformation}
-                onChange={(e) => setOtherInformation(e.target.value)}
-              />
               <Typography variant="h6" sx={{ mt: 2, fontWeight: "bold" }}>
                 Total: GH₵ {totalPrice.toFixed(2)}
               </Typography>
@@ -566,7 +565,7 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
               },
             }}
             variant="contained"
-            onClick={""}
+            onClick={handleOrder}
             disabled={orderType === "delivery" && !selectedLocation}
           >
             ORDER
