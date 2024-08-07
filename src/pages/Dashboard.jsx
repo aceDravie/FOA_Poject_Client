@@ -4,6 +4,7 @@ import { Typography, Container } from "@mui/material";
 import { Outlet, NavLink, useParams, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import "../styles/rootLayout.css";
+import MostOrderedFoods from "../components/MostOrderedFoods";
 
 const Dashboard = () => {
   const { clientID } = useParams();
@@ -12,6 +13,7 @@ const Dashboard = () => {
   return (
     <Container>
       <Slideshow />
+      <MostOrderedFoods />
       <div className="">
         <div className="links">
           <NavLink to={`/client/dashboard`} className="navLink" end>

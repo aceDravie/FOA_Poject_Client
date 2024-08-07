@@ -19,7 +19,7 @@ const Slideshow = () => {
     const fetchTopFoods = async () => {
       try {
         const foodsRef = collection(db, "foods");
-        const q = query(foodsRef, orderBy("orderCount", "desc"), limit(10));
+        const q = query(foodsRef);
         const querySnapshot = await getDocs(q);
         const foods = querySnapshot.docs.map((doc) => ({
           id: doc.id,
@@ -71,7 +71,8 @@ const Slideshow = () => {
           <SwiperSlide key={food.id}>
             <Box
               className="slide-content"
-              // onClick={() => handleImageClick(food)}
+              onClick={() => handleImageClick(food)}
+              sx={{ cursor: 'pointer' }}
             >
               <img src={food.image} alt={food.name} />
               <Typography variant="h6" className="food-name">
@@ -96,8 +97,8 @@ const Slideshow = () => {
         <FoodDialog
           open={dialogOpen}
           onClose={handleDialogClose}
-          title={selectedFood.name}
-          rating={selectedFood.rating}
+          name={selectedFood.name}
+          rating={selectedFood.ratings}
           price={selectedFood.price}
           imageSrc={selectedFood.image}
           description={selectedFood.description}

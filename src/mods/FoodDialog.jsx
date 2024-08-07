@@ -190,9 +190,11 @@ const FoodDialog = ({
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     display: "-webkit-box",
-                    WebkitLineClamp: 3,
+                    WebkitLineClamp: 2,
                     WebkitBoxOrient: "vertical",
                     cursor: "pointer",
+                    color: "333",
+                    fontSize: "0.8rem"
                   }}
                 >
                   {description}
