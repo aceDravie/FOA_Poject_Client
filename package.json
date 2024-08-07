@@ -16,6 +16,8 @@
     "@mui/lab": "^5.0.0-alpha.173",
     "@mui/material": "^5.16.6",
     "@mui/system": "^5.16.6",
+    "@paystack/inline-js": "^2.19.3",
+    "date-fns": "^3.6.0",
     "firebase": "^10.12.4",
     "framer-motion": "^11.3.19",
     "leaflet": "^1.9.4",

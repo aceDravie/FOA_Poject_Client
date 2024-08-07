@@ -18,12 +18,13 @@ import TextField from "@mui/material/TextField";
 import Alert from "@mui/material/Alert";
 import ShoppingCart from "@mui/icons-material/ShoppingCart";
 import { motion, AnimatePresence } from "framer-motion";
-import { useParams } from "react-router-dom";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import CloseIcon from "@mui/icons-material/Close";
 import RatingDialog from "./RatingDialog";
 import { db } from "../helpers/firebase";
+import { format, parseISO } from "date-fns";
+import PaystackPop from "@paystack/inline-js";
 import {
   collection,
   query,
@@ -31,7 +32,6 @@ import {
   onSnapshot,
   getDocs,
   updateDoc,
-  increment,
   setDoc,
   addDoc,
   writeBatch,
@@ -141,7 +141,6 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
         console.error("Error fetching locations:", error);
       }
     };
-
     fetchLocations();
   }, []);
 
@@ -183,6 +182,22 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
 
     return () => unsubscribe();
   }, [currentUser]);
+
+  const fetchDeliveryGuys = async (locationId) => {
+    try {
+      const staffRef = collection(db, "staff");
+      const q = query(
+        staffRef,
+        where("role", "==", "deliveryGuy"),
+        where("location", "==", locationId)
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error fetching delivery guys:", error);
+      return [];
+    }
+  };
 
   useEffect(() => {
     if (tempOrders.length > 0) {
@@ -233,159 +248,123 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
   };
 
   const handleOrder = async () => {
-    const pickupDateTime = `${pickupDate}T${pickupTime}`;
-    if (orderType === "delivery") {
-      const deliveryOrders = tempOrders.map((order, index) => ({
-        ...order,
-        quantity: orderQuantities[index],
-      }));
+    const currentDate = new Date();
+    const [hours, minutes] = pickupTime.split(":");
+    currentDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+    const orderTime = format(
+      currentDate,
+      "dd MMMM yyyy 'at' HH:mm:ss 'UTC'xxx"
+    );
 
-      // Choose a random delivery guy
-      const randomIndex = Math.floor(Math.random() * deliveryGuys.length);
-      const randomDeliveryGuy = deliveryGuys[randomIndex];
-
-      const deliveryData = {
-        orders: deliveryOrders,
-        totalPrice: totalPrice.toFixed(2),
-        otherInformation: otherInformation,
-        location: selectedLocation,
-        clientId,
-        orderType: "delivery",
-        orderTime: pickupDateTime,
-        deliveryGuy: randomDeliveryGuy,
-      };
-      console.log("Delivery Order Data:", deliveryData);
-
-      try {
-        await addDoc, writeBatch(collection(db, "orders"), deliveryData);
-        console.log("Delivery order data saved successfully!");
-
-        // Delete documents from tempOrders collection
-        const tempOrdersCollection = collection(db, "tempOrders");
-        const querySnapshot = await getDocs(tempOrdersCollection);
-        const batch = writeBatch(db);
-
-        querySnapshot.forEach((doc) => {
-          if (doc.data().clientId === clientId) {
-            batch.delete(doc.ref);
+    const orderData =
+      orderType === "delivery"
+        ? {
+            orders: tempOrders.map((order, index) => ({
+              ...order,
+              quantity: orderQuantities[index],
+            })),
+            totalPrice: Number(totalPrice.toFixed(2)),
+            otherInformation,
+            location: selectedLocation,
+            clientId,
+            orderType: "delivery",
+            orderTime,
+            deliveryGuy: await fetchRandomDeliveryGuy(selectedLocation.id),
           }
-        });
+        : {
+            orders: tempOrders.map((order, index) => ({
+              ...order,
+              quantity: orderQuantities[index],
+            })),
+            totalPrice: Number(totalPrice.toFixed(2)),
+            orderTime,
+            clientId,
+            otherInformation,
+            orderType: "pickup",
+            token: generateToken(8),
+            claimed: false,
+          };
 
-        await batch.commit();
-        console.log(
-          "Documents deleted from tempOrders collection successfully!"
-        );
+    const payStack = new PaystackPop();
+    payStack.newTransaction({
+      key: "pk_test_dda1b090ed301a7df8b0b7ed0e066912824d04d5",
+      amount: orderData.totalPrice * 100, 
+      email: currentUser.email,
+      firstName: currentUser.displayName?.split(" ")[0] || "",
+      lastName: currentUser.displayName?.split(" ")[1] || "",
+      onSuccess: () => handlePaymentSuccess(orderData),
+      onCancel: () => {
+        setAlertMessage("Payment cancelled");
+        setAlertSeverity("warning");
+        setAlertOpen(true);
+      },
+    });
+  };
 
-        for (const order of deliveryOrders) {
-          const foodRef = doc(db, "food", order.foodId);
-          const foodDoc = await getDoc(foodRef);
+  const handlePaymentSuccess = async (orderData) => {
+    try {
+      const docRef = await addDoc(collection(db, "orders"), orderData);
+      console.log("Document written with ID: ", docRef.id);
 
-          if (foodDoc.exists()) {
-            const foodData = foodDoc.data();
-            const currentCount = foodData.count || 0;
-            const newCount = currentCount + order.quantity;
+      let batch = writeBatch(db);
 
-            await updateDoc(foodRef, { count: newCount });
-          } else {
-            await setDoc(foodRef, { count: order.quantity });
-          }
+      // Delete documents from tempOrders collection
+      const tempOrdersCollection = collection(db, "tempOrders");
+      const querySnapshot = await getDocs(tempOrdersCollection);
+
+      querySnapshot.forEach((doc) => {
+        if (doc.data().clientId === clientId) {
+          batch.delete(doc.ref);
         }
+      });
 
-        setAlertMessage("Order added successfully!");
-        setAlertSeverity("success");
-        setAlertOpen(true);
+      await batch.commit();
+      console.log("Documents deleted from tempOrders collection successfully!");
 
-        setShowRateButton(true);
-        const timer = setTimeout(() => {
-          setShowRateButton(false);
-        }, 3000);
-        setRateButtonTimer(timer);
-        onClose();
-      } catch (error) {
-        console.error("Error saving delivery order data:", error.message);
-        setAlertMessage("Error adding order. Please try again.");
-        setAlertSeverity("error");
-        setAlertOpen(true);
-      } finally {
-        handleDialogClose();
-      }
-    } else if (orderType === "pickup") {
-      const pickupOrders = tempOrders.map((order, index) => ({
-        ...order,
-        quantity: orderQuantities[index],
-      }));
-      const pickupDateTime = `${pickupDate}T${pickupTime}`;
-      const token = generateToken(8); // You can adjust the length as needed
-      const pickupData = {
-        orders: pickupOrders,
-        totalPrice: totalPrice.toFixed(2),
-        orderTime: pickupDateTime,
-        clientId,
-        otherInformation: otherInformation,
-        orderType: "pickup",
-        token,
-        claimed: false,
-      };
-      console.log("Pickup Order Data:", pickupData);
+      for (const order of orderData.orders) {
+        const foodRef = doc(db, "food", order.foodId);
+        const foodDoc = await getDoc(foodRef);
 
-      try {
-        await addDoc(collection(db, "orders"), pickupData);
-        console.log("Pickup order data saved successfully!");
+        if (foodDoc.exists()) {
+          const foodData = foodDoc.data();
+          const currentCount = foodData.count || 0;
+          const newCount = currentCount + order.quantity;
 
-        const tempOrdersCollection = collection(db, "tempOrders");
-        const querySnapshot = await getDocs(tempOrdersCollection);
-        const batch = writeBatch(db);
-
-        querySnapshot.forEach((doc) => {
-          if (doc.data().clientId === clientId) {
-            batch.delete(doc.ref);
-          }
-        });
-
-        await batch.commit();
-        console.log(
-          "Documents deleted from tempOrders collection successfully!"
-        );
-
-        for (const order of pickupOrders) {
-          const foodRef = doc(db, "food", order.foodId);
-          const foodDoc = await getDoc(foodRef);
-
-          if (foodDoc.exists()) {
-            const foodData = foodDoc.data();
-            const currentCount = foodData.count || 0;
-            const newCount = currentCount + order.quantity;
-
-            await updateDoc(foodRef, { count: newCount });
-          } else {
-            await setDoc(foodRef, { count: order.quantity });
-          }
+          await updateDoc(foodRef, { count: newCount });
+        } else {
+          await setDoc(foodRef, { count: order.quantity });
         }
-
-        setAlertMessage("Order added successfully!");
-        setAlertSeverity("success");
-        setAlertOpen(true);
-        setShowRateButton(true);
-        const timer = setTimeout(() => {
-          setShowRateButton(false);
-        }, 3000);
-        setRateButtonTimer(timer);
-        handleDialogClose();
-        onClose();
-      } catch (error) {
-        console.error("Error saving pickup order data:", error.message);
-        setAlertMessage("Error adding order. Please try again.");
-        setAlertSeverity("error");
-        setAlertOpen(true);
-      } finally {
-        handleDialogClose();
       }
-    } else {
-      console.error("Invalid order type:", orderType);
-      setAlertMessage("Invalid order type. Please try again.");
+
+      setAlertMessage("Order placed and paid successfully!");
+      setAlertSeverity("success");
+      setAlertOpen(true);
+
+      setShowRateButton(true);
+      const timer = setTimeout(() => {
+        setShowRateButton(false);
+      }, 3000);
+      setRateButtonTimer(timer);
+      onClose();
+    } catch (error) {
+      console.error("Error saving order data:", error.message);
+      setAlertMessage("Error adding order. Please try again.");
       setAlertSeverity("error");
       setAlertOpen(true);
+    } finally {
+      handleDialogClose();
     }
+  };
+
+  const fetchRandomDeliveryGuy = async (locationId) => {
+    const availableDeliveryGuys = await fetchDeliveryGuys(locationId);
+    if (availableDeliveryGuys.length > 0) {
+      const randomIndex = Math.floor(
+        Math.random() * availableDeliveryGuys.length
+      );
+      return availableDeliveryGuys[randomIndex];
+    }
+    return null;
   };
 
   const orderTypeStyle = {

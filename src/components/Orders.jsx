@@ -8,22 +8,59 @@ import {
 } from "@mui/material";
 import { AuthContext } from "../context/AuthContext";
 import { db } from "../helpers/firebase";
-import { collection, onSnapshot, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { motion, AnimatePresence } from "framer-motion";
 import SkeletonAnimation from "@mui/lab/Skeleton";
 
 const formatDate = (dateString) => {
-  const date = new Date(dateString);
+  dateString = dateString.replace(/^"|"$/g, "");
+
+  const [datePart, timePart] = dateString.split(" at ");
+  const [day, month, year] = datePart.split(" ");
+  const [time, timezone] = timePart.split(" ");
+  const [hours, minutes, seconds] = time.split(":");
+
+  const date = new Date(
+    Date.UTC(year, getMonthIndex(month), day, hours, minutes, seconds)
+  );
+
   const options = {
     day: "numeric",
     month: "long",
     year: "numeric",
     hour: "numeric",
     minute: "numeric",
+    second: "numeric",
     hour12: true,
+    timeZone: "UTC",
   };
-  return date.toLocaleString("en-US", options);
+
+  return date.toLocaleString("en-US", options) + " " + timezone;
+};
+
+const getMonthIndex = (monthName) => {
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  return months.indexOf(monthName);
 };
 
 const Orders = () => {
@@ -40,7 +77,6 @@ const Orders = () => {
   const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
   const currentOrders = orders.slice(indexOfFirstOrder, indexOfLastOrder);
 
-  
   useEffect(() => {
     const fetchClientId = async () => {
       if (currentUser && currentUser.email) {
@@ -165,7 +201,7 @@ const Orders = () => {
                             Delivery Guy: {order.deliveryGuy.name}
                           </Typography>
                           <Typography variant="body2">
-                            Contact: {order.deliveryGuy.contact}
+                            Contact: {order.deliveryGuy.phone}
                           </Typography>
                         </>
                       ) : (
