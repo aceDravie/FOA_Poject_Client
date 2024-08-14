@@ -36,7 +36,7 @@ import {
   addDoc,
   writeBatch,
   doc,
-  getDoc,
+  getDoc,deleteDoc
 } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 
@@ -46,7 +46,7 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
   const [orderQuantities, setOrderQuantities] = useState([]);
   const [totalPrice, setTotalPrice] = useState(0);
   const [pickupDate, setPickupDate] = useState("");
-  const [pickupTime, setPickupTime] = useState("");
+  const [pickupTime, setPickupTime] = useState("12:00");
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [alertSeverity, setAlertSeverity] = useState("success");
@@ -288,7 +288,7 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
     const payStack = new PaystackPop();
     payStack.newTransaction({
       key: "pk_test_dda1b090ed301a7df8b0b7ed0e066912824d04d5",
-      amount: orderData.totalPrice * 100, 
+      amount: orderData.totalPrice * 100,
       email: currentUser.email,
       firstName: currentUser.displayName?.split(" ")[0] || "",
       lastName: currentUser.displayName?.split(" ")[1] || "",
@@ -299,6 +299,14 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
         setAlertOpen(true);
       },
     });
+  };
+
+  const handleRemoveOrder = async (index) => {
+    const order = tempOrders[index];
+    console.log(tempOrders);
+    await deleteDoc(doc(db, "tempOrders", order.id));
+    setTempOrders(tempOrders.filter((_, i) => i !== index));
+    setTempOrdersCount(tempOrdersCount - 1);
   };
 
   const handlePaymentSuccess = async (orderData) => {
@@ -448,7 +456,7 @@ const TempOrdersDialog = ({ open, onClose, onRemoveOrder }) => {
                               <ExpandMoreIcon />
                             )}
                           </IconButton>
-                          <IconButton onClick={() => onRemoveOrder(index)}>
+                          <IconButton onClick={() => handleRemoveOrder(index)}>
                             <DeleteIcon color="warning" />
                           </IconButton>
                         </div>

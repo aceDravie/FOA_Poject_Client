@@ -18,6 +18,7 @@ import { AuthContext } from "../context/AuthContext";
 import Avatar from "@mui/material/Avatar";
 import { Person } from "@mui/icons-material";
 import Profile from "./Profile";
+import TextsmsIcon from "@mui/icons-material/Textsms";
 import TempOrdersDialog from "../mods/TempOrdersDialog";
 const settings = ["Profile", "Logout"];
 import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
@@ -27,7 +28,7 @@ import {
   getDocs,
   query,
   where,
-  onSnapshot,
+  onSnapshot, deleteDoc,doc
 } from "firebase/firestore";
 
 const Navbar = () => {
@@ -41,8 +42,37 @@ const Navbar = () => {
   const [showNavbar, setShowNavbar] = useState(true);
   const { currentUser, dispatch } = useContext(AuthContext);
   const [openChangeProfile, setOpenChangeProfile] = useState(false);
+  const [complaintsCount, setComplaintsCount] = useState(0);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const complaintsSnapshot = await getDocs(collection(db, "complaints"));
+        setComplaintsCount(complaintsSnapshot.size);
+
+        if (currentUser && currentUser.email) {
+          const customerQuery = query(
+            collection(db, "customers"),
+            where("email", "==", currentUser.email)
+          );
+          const customerSnapshot = await getDocs(customerQuery);
+          if (!customerSnapshot.empty) {
+            const customerData = customerSnapshot.docs[0].data();
+            setUserImage(customerData.imageUrl || "");
+            setFirstName(customerData.firstName || "");
+            console.log(customerData)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchData();
+  }, [currentUser]);
+
+  
   useEffect(() => {
     let unsubscribe = () => {};
 
@@ -60,7 +90,7 @@ const Navbar = () => {
             const customerData = customerDoc.data();
             const customerId = customerDoc.id;
 
-            setUserImage(customerData.image || "");
+            setUserImage(customerData.imageUrl || "");
             setFirstName(customerData.firstName || "");
 
             // Set up real-time listener for tempOrdersCount
@@ -108,6 +138,9 @@ const Navbar = () => {
   const handleOpenUserMenu = (event) => {
     setAnchorElUser(event.currentTarget);
   };
+  const handleOpenComplaints = () => {
+    navigate("/client/complains");
+  };
 
   const handleCloseNavMenu = () => {
     setAnchorElNav(null);
@@ -124,21 +157,24 @@ const Navbar = () => {
     setDialogOpen(true);
   };
 
+
   const handleRemoveOrder = async (index) => {
     const order = tempOrders[index];
+    console.log(tempOrders)
+    await deleteDoc(doc(db, "tempOrders", order.id));
     setTempOrders(tempOrders.filter((_, i) => i !== index));
     setTempOrdersCount(tempOrdersCount - 1);
   };
+
+
 
   useEffect(() => {
     let lastScrollY = window.scrollY;
 
     const handleScroll = () => {
       if (window.scrollY > lastScrollY) {
-        // Scroll down
         setShowNavbar(false);
       } else {
-        // Scroll up
         setShowNavbar(true);
       }
       lastScrollY = window.scrollY;
@@ -330,6 +366,17 @@ const Navbar = () => {
               <Tooltip title="My Orders">
                 <IconButton component={Link} to={"orders"}>
                   <PlaylistAddCheckIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Messages">
+                <IconButton
+                  onClick={handleOpenComplaints}
+                  sx={{ p: 0, mx: 1 }}
+                  size="small"
+                >
+                  <Badge badgeContent={complaintsCount} color="primary">
+                    <TextsmsIcon />
+                  </Badge>
                 </IconButton>
               </Tooltip>
               <Tooltip title="Account settings">

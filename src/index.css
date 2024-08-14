@@ -79,7 +79,7 @@ body {
 
 .swiper-slide img {
   width: 18rem;
-  height: 23rem;
+  height: 20rem;
   border-radius: 2rem;
   box-shadow: 0 0 10px white;
   object-fit: cover;
@@ -137,7 +137,7 @@ body {
   display: none;
   background: var(--white);
   width: 3.5rem;
-  height: 3.5rem;
+  height: 3rem;
   border-radius: 50%;
   left: 42%;
   transform: translateX(-42%);

@@ -11,6 +11,7 @@ import Orders from "./components/Orders";
 import { ThemeProvider } from "@mui/material/styles";
 import Category from "./components/Category";
 import theme from "./helpers/Theme";
+import Complains from "./mods/Complains";
 
 function App() {
   const currentUser = useContext(AuthContext);
@@ -32,6 +33,7 @@ function App() {
                 <Route path="all-foods" element={<AllFood />} />
               </Route>
               <Route path="orders" element={<Orders />} />
+              <Route path="complains" element={<Complains/>}/>
             </Route>
           </Route>
         </Routes>

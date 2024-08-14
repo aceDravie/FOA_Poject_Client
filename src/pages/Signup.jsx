@@ -56,8 +56,7 @@ const Signup = () => {
       !email ||
       !address ||
       !gender ||
-      !password ||
-      !image
+      !password
     ) {
       setSeverity("error");
       setMessage("All fields required");
