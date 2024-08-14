@@ -13,8 +13,6 @@ import {
   TextField,
   Tabs,
   Tab,
-  FormControlLabel,
-  Checkbox,
 } from "@mui/material";
 import { db } from "../helpers/firebase";
 import {
@@ -27,10 +25,6 @@ import {
 } from "firebase/firestore";
 
 const Complains = () => {
-  const [customers, setCustomers] = useState([]);
-  const [filteredCustomers, setFilteredCustomers] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-
   const [tabValue, setTabValue] = useState(0);
   const [messages, setMessages] = useState({
     received: [],
@@ -38,24 +32,11 @@ const Complains = () => {
   });
 
   const [openDialog, setOpenDialog] = useState(false);
-  const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
   const [newMessage, setNewMessage] = useState({ subject: "", content: "" });
-  const [selectedCustomers, setSelectedCustomers] = useState([]);
 
   useEffect(() => {
-    fetchAdmin();
     fetchComplaints();
   }, []);
-  const fetchAdmin = async () => {
-    const staffCollection = collection(db, "staff");
-    const staffSnapshot = await getDocs(staffCollection);
-    const staffList = staffSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      name: doc.data().name,
-    }));
-    setCustomers(staffList);
-    setFilteredCustomers(staffList);
-  };
 
   const fetchComplaints = async () => {
     const complaintsRef = collection(db, "complaints");
@@ -85,13 +66,6 @@ const Complains = () => {
     });
   };
 
-  useEffect(() => {
-    const filtered = customers.filter((customer) =>
-      customer.name?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredCustomers(filtered);
-  }, [searchQuery, customers]);
-
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
@@ -99,39 +73,16 @@ const Complains = () => {
   const handleOpenDialog = () => setOpenDialog(true);
   const handleCloseDialog = () => {
     setOpenDialog(false);
-    setSelectedCustomers([]);
+    setNewMessage({ subject: "", content: "" });
   };
-
-  const handleOpenCustomerDialog = () => setOpenCustomerDialog(true);
-  const handleCloseCustomerDialog = () => setOpenCustomerDialog(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewMessage({ ...newMessage, [name]: value });
   };
 
-  const handleCustomerSelect = (customerId) => {
-    setSelectedCustomers((prev) =>
-      prev.includes(customerId)
-        ? prev.filter((id) => id !== customerId)
-        : [...prev, customerId]
-    );
-  };
-
-  const handleSelectAllCustomers = (event) => {
-    if (event.target.checked) {
-      setSelectedCustomers(filteredCustomers.map((customer) => customer.id));
-    } else {
-      setSelectedCustomers([]);
-    }
-  };
-
   const handleSubmit = async () => {
-    if (
-      newMessage.subject &&
-      newMessage.content &&
-      selectedCustomers.length > 0
-    ) {
+    if (newMessage.subject && newMessage.content) {
       try {
         const complaintsRef = collection(db, "complaints");
 
@@ -140,10 +91,6 @@ const Complains = () => {
           content: newMessage.content,
           date: serverTimestamp(),
           mode: "sent",
-          customerIds: selectedCustomers,
-          recipients: selectedCustomers.map(
-            (id) => customers.find((c) => c.id === id).name
-          ),
         };
 
         const docRef = await addDoc(complaintsRef, newComplaint);
@@ -151,8 +98,6 @@ const Complains = () => {
 
         await fetchComplaints();
 
-        setNewMessage({ subject: "", content: "" });
-        setSelectedCustomers([]);
         handleCloseDialog();
       } catch (error) {
         console.error("Error adding complaint: ", error);
@@ -160,11 +105,8 @@ const Complains = () => {
     }
   };
 
-  const handleSearchChange = (event) => {
-    setSearchQuery(event.target.value);
-  };
   return (
-    <Box sx={{ p: 3, marginTop: 10}}>
+    <Box sx={{ p: 3, marginTop: 10 }}>
       <Typography
         variant="h5"
         gutterBottom
@@ -204,15 +146,6 @@ const Complains = () => {
                     {message.content}
                   </Typography>
                   {` — ${message.date}`}
-                  {message.recipients && (
-                    <Typography
-                      component="p"
-                      variant="body2"
-                      color="text.secondary"
-                    >
-                      To: {message.recipients.join(", ")}
-                    </Typography>
-                  )}
                 </>
               }
             />
@@ -246,54 +179,10 @@ const Complains = () => {
             value={newMessage.content}
             onChange={handleInputChange}
           />
-          <Button onClick={handleOpenCustomerDialog} sx={{ mt: 2 }}>
-            Select Recipients ({selectedCustomers.length})
-          </Button>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
           <Button onClick={handleSubmit}>Submit</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={openCustomerDialog} onClose={handleCloseCustomerDialog}>
-        <DialogTitle>Select Recipients</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            name="search"
-            label="Search Customers"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={searchQuery}
-            onChange={handleSearchChange}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={selectedCustomers.length === filteredCustomers.length}
-                onChange={handleSelectAllCustomers}
-              />
-            }
-            label="Select All"
-          />
-          {filteredCustomers.map((customer) => (
-            <FormControlLabel
-              key={customer.id}
-              control={
-                <Checkbox
-                  checked={selectedCustomers.includes(customer.id)}
-                  onChange={() => handleCustomerSelect(customer.id)}
-                />
-              }
-              label={customer.name}
-            />
-          ))}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCustomerDialog}>Done</Button>
         </DialogActions>
       </Dialog>
     </Box>
