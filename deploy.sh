@@ -20,6 +20,6 @@ git checkout -B main
 git add -A
 git commit -m 'deploy'
 
-git push -f git@github.com:aceDravie/Food_Poject_Client.git main:gh-pages
+git push -f git@github.com:aceDravie/FOA_Poject_Client.git main:gh-pages
 
 cd -
