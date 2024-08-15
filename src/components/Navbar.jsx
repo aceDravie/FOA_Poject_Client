@@ -61,7 +61,7 @@ const Navbar = () => {
             const customerData = customerSnapshot.docs[0].data();
             setUserImage(customerData.imageUrl || "");
             setFirstName(customerData.firstName || "");
-            console.log(customerData)
+            console.log(customerData.imageUrl)
           }
         }
       } catch (error) {

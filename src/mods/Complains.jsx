@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   Box,
   Typography,
@@ -25,10 +25,12 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { AuthContext } from "../context/AuthContext";
 
 const Complains = () => {
-  const [customers, setCustomers] = useState([]);
-  const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [staffs, setStaff] = useState([]);
+  const { currentUser, dispatch } = useContext(AuthContext);
+  const [filteredStaffs, setFilteredStaffs] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [tabValue, setTabValue] = useState(0);
@@ -38,29 +40,37 @@ const Complains = () => {
   });
 
   const [openDialog, setOpenDialog] = useState(false);
-  const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
+  const [openCustomerDialog, setOpenStaffsDialog] = useState(false);
   const [newMessage, setNewMessage] = useState({ subject: "", content: "" });
-  const [selectedCustomers, setSelectedCustomers] = useState([]);
+  const [selectedCustomers, setSelectedStaffs] = useState([]);
 
   useEffect(() => {
-    fetchAdmin();
+    fetchStaff();
     fetchComplaints();
+    console.log(currentUser)
   }, []);
-  const fetchAdmin = async () => {
+
+  const fetchStaff = async () => {
     const staffCollection = collection(db, "staff");
     const staffSnapshot = await getDocs(staffCollection);
     const staffList = staffSnapshot.docs.map((doc) => ({
       id: doc.id,
       name: doc.data().name,
     }));
-    setCustomers(staffList);
-    setFilteredCustomers(staffList);
+    setStaff(staffList);
+    setFilteredStaffs(staffList);
   };
 
   const fetchComplaints = async () => {
-    const complaintsRef = collection(db, "complaints");
-    const sentQuery = query(complaintsRef, where("mode", "==", "sent"));
-    const receivedQuery = query(complaintsRef, where("mode", "==", "received"));
+    const complaintsRef = collection(db, "complaints" );
+    const sentQuery = query(
+      complaintsRef,
+      where("mode", "==", "sentByCustomer")
+    );
+    const receivedQuery = query(
+      complaintsRef,
+      where("mode", "==", "sentByAdmin")
+    );
 
     const [sentSnapshot, receivedSnapshot] = await Promise.all([
       getDocs(sentQuery),
@@ -83,14 +93,17 @@ const Complains = () => {
       sent: sentComplaints,
       received: receivedComplaints,
     });
+
+    console.log(messages.sent);
+    console.log(messages.received);
   };
 
   useEffect(() => {
-    const filtered = customers.filter((customer) =>
-      customer.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    const filtered = staffs.filter((staff) =>
+      staff.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
-    setFilteredCustomers(filtered);
-  }, [searchQuery, customers]);
+    setFilteredStaffs(filtered);
+  }, [searchQuery, staffs]);
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -99,39 +112,35 @@ const Complains = () => {
   const handleOpenDialog = () => setOpenDialog(true);
   const handleCloseDialog = () => {
     setOpenDialog(false);
-    setSelectedCustomers([]);
+    setSelectedStaffs([]);
   };
 
-  const handleOpenCustomerDialog = () => setOpenCustomerDialog(true);
-  const handleCloseCustomerDialog = () => setOpenCustomerDialog(false);
+  const handleOpenStaffDialog = () => setOpenStaffsDialog(true);
+  const handleCloseStaffDialog = () => setOpenStaffsDialog(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewMessage({ ...newMessage, [name]: value });
   };
 
-  const handleCustomerSelect = (customerId) => {
-    setSelectedCustomers((prev) =>
-      prev.includes(customerId)
-        ? prev.filter((id) => id !== customerId)
-        : [...prev, customerId]
+  const handleCustomerSelect = (staffID) => {
+    setSelectedStaffs((prev) =>
+      prev.includes(staffID)
+        ? prev.filter((id) => id !== staffID)
+        : [...prev, staffID]
     );
   };
 
   const handleSelectAllCustomers = (event) => {
     if (event.target.checked) {
-      setSelectedCustomers(filteredCustomers.map((customer) => customer.id));
+      setSelectedStaffs(filteredStaffs.map((staff) => staff.id));
     } else {
-      setSelectedCustomers([]);
+      setSelectedStaffs([]);
     }
   };
 
   const handleSubmit = async () => {
-    if (
-      newMessage.subject &&
-      newMessage.content &&
-      selectedCustomers.length > 0
-    ) {
+    if (newMessage.subject && newMessage.content) {
       try {
         const complaintsRef = collection(db, "complaints");
 
@@ -139,11 +148,8 @@ const Complains = () => {
           subject: newMessage.subject,
           content: newMessage.content,
           date: serverTimestamp(),
-          mode: "sent",
-          customerIds: selectedCustomers,
-          recipients: selectedCustomers.map(
-            (id) => customers.find((c) => c.id === id).name
-          ),
+          mode: "sentByCustomer",
+          email: currentUser.email,
         };
 
         const docRef = await addDoc(complaintsRef, newComplaint);
@@ -152,7 +158,7 @@ const Complains = () => {
         await fetchComplaints();
 
         setNewMessage({ subject: "", content: "" });
-        setSelectedCustomers([]);
+        setSelectedStaffs([]);
         handleCloseDialog();
       } catch (error) {
         console.error("Error adding complaint: ", error);
@@ -164,13 +170,13 @@ const Complains = () => {
     setSearchQuery(event.target.value);
   };
   return (
-    <Box sx={{ p: 3, marginTop: 10}}>
+    <Box sx={{ p: 3, marginTop: 10 }}>
       <Typography
         variant="h5"
         gutterBottom
         sx={{ fontWeight: "bold", color: "#333" }}
       >
-        Complaints
+        Messages
       </Typography>
 
       <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
@@ -204,15 +210,6 @@ const Complains = () => {
                     {message.content}
                   </Typography>
                   {` — ${message.date}`}
-                  {message.recipients && (
-                    <Typography
-                      component="p"
-                      variant="body2"
-                      color="text.secondary"
-                    >
-                      To: {message.recipients.join(", ")}
-                    </Typography>
-                  )}
                 </>
               }
             />
@@ -246,54 +243,10 @@ const Complains = () => {
             value={newMessage.content}
             onChange={handleInputChange}
           />
-          <Button onClick={handleOpenCustomerDialog} sx={{ mt: 2 }}>
-            Select Recipients ({selectedCustomers.length})
-          </Button>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
           <Button onClick={handleSubmit}>Submit</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={openCustomerDialog} onClose={handleCloseCustomerDialog}>
-        <DialogTitle>Select Recipients</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            name="search"
-            label="Search Customers"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={searchQuery}
-            onChange={handleSearchChange}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={selectedCustomers.length === filteredCustomers.length}
-                onChange={handleSelectAllCustomers}
-              />
-            }
-            label="Select All"
-          />
-          {filteredCustomers.map((customer) => (
-            <FormControlLabel
-              key={customer.id}
-              control={
-                <Checkbox
-                  checked={selectedCustomers.includes(customer.id)}
-                  onChange={() => handleCustomerSelect(customer.id)}
-                />
-              }
-              label={customer.name}
-            />
-          ))}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCustomerDialog}>Done</Button>
         </DialogActions>
       </Dialog>
     </Box>
